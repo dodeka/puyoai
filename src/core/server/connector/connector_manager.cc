@@ -35,12 +35,14 @@ void ConnectorManager::invokePlayer(int playerId, const string& programName)
     CHECK_EQ(posix_spawn(&pid, programName.c_str(), nullptr, nullptr, argv, nullptr), 0);
 
     // Make server socket
+    // TODO(mayah): Needs to unlink /tmp/puyoai.sock before binding.
     net::UnixDomainServerSocket socket = Socket::makeUnixServerSocket();
+    file::remove("/tmp/puyoai.sock");
     socket.bind("/tmp/puyoai.sock");
-    socket.listen(5);
+    socket.listen(1);
 
     net::UnixDomainSocket accepted = socket.accept();
-    setConnector(playerId, unique_ptr<Connector>(new SocketConnector(playerId)));
+    setConnector(playerId, unique_ptr<Connector>(new SocketConnector(playerId, std::move(accepted))));
 }
 
 void ConnectorManager::setConnector(int playerId, std::unique_ptr<Connector> p)
