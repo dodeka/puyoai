@@ -11,11 +11,11 @@ class SocketClientConnector : public ClientConnector {
 public:
     explicit SocketClientConnector(net::Socket socket);
 
-    // Returns true if receive suceeded.
-    bool receive(FrameRequest* request) override;
-    void send(const FrameResponse&) override;
-
 private:
+    bool readExactly(void* buf, size_t size) override;
+    bool writeExactly(const void* buf, size_t size) override;
+    void flush() override;
+
     net::Socket socket_;
 };
 
