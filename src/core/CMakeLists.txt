@@ -1,16 +1,13 @@
 cmake_minimum_required(VERSION 2.8)
 
 add_subdirectory(client)
+add_subdirectory(connector)
 add_subdirectory(pattern)
 add_subdirectory(plan)
 add_subdirectory(probability)
 add_subdirectory(rensa)
 add_subdirectory(rensa_tracker)
 add_subdirectory(server)
-
-if(USE_HTTPD)
-    add_subdirectory(httpd)
-endif()
 
 # ----------------------------------------------------------------------
 # library

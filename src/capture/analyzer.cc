@@ -49,6 +49,27 @@ string toString(CaptureGameState cgs)
     return string();
 }
 
+bool isGameFinishedState(CaptureGameState cgs)
+{
+    switch (cgs) {
+    case CaptureGameState::UNKNOWN:
+    case CaptureGameState::LEVEL_SELECT:
+    case CaptureGameState::PLAYING:
+        return false;
+    case CaptureGameState::GAME_FINISHED_WITH_1P_WIN:
+    case CaptureGameState::GAME_FINISHED_WITH_2P_WIN:
+    case CaptureGameState::GAME_FINISHED_WITH_DRAW:
+    case CaptureGameState::MATCH_FINISHED_WITH_1P_WIN:
+    case CaptureGameState::MATCH_FINISHED_WITH_2P_WIN:
+    case CaptureGameState::MATCH_FINISHED_WITH_DRAW:
+        return true;
+    }
+
+    CHECK(false) << "Unknown CaptureGameState: " << static_cast<int>(cgs);
+    return false;
+}
+
+
 string toString(NextPuyoState nps)
 {
     switch (nps) {
@@ -355,8 +376,11 @@ void Analyzer::analyzeNextForStateStable(const DetectedField& detectedField, Pla
     if (result->nextWillDisappearFast_ && detectedField.next1AxisMoving) {
         // In this case, we think NEXT1 has disappeared.
         // Otherwise, it will take a few frames to move puyo correctly.
+
+        // TODO(mayah): For wii, -2 looks good. However, for AC, -2 looks too fast, so sometimes
+        // it fails to control the first puyo handling. So, let me try to set -3 here.
         result->framesWhileNext1Disappearing =
-            std::max(result->framesWhileNext1Disappearing, NUM_FRAMES_TO_MOVE_AFTER_NEXT1_DISAPPEARING - 2);
+            std::max(result->framesWhileNext1Disappearing, NUM_FRAMES_TO_MOVE_AFTER_NEXT1_DISAPPEARING - 3);
 
     } else {
         RealColor axisColor = detectedField.realColor(NextPuyoPosition::NEXT1_AXIS);

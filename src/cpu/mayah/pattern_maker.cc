@@ -3,10 +3,10 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "base/file.h"
+#include "base/file/path.h"
 #include "base/wait_group.h"
-#include "core/httpd/http_server.h"
 #include "core/pattern/pattern_book.h"
+#include "net/httpd/http_server.h"
 
 DECLARE_string(pattern_book);
 DECLARE_string(data_dir);

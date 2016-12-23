@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
 add_subdirectory(driver)
+add_subdirectory(recognition)
 
 add_library(puyoai_capture
             ac_analyzer.cc
@@ -38,6 +39,7 @@ function(capture_add_executable exe)
     target_link_libraries(${exe} puyoai_capture)
     target_link_libraries(${exe} puyoai_recognition)
     target_link_libraries(${exe} puyoai_gui)
+    target_link_libraries(${exe} puyoai_learning)
     target_link_libraries(${exe} puyoai_core)
     target_link_libraries(${exe} puyoai_duel)
     target_link_libraries(${exe} puyoai_base)
@@ -56,6 +58,7 @@ endfunction()
 
 capture_add_executable(convert_image_60fps)
 capture_add_executable(convert_movie_60fps)
+capture_add_executable(gather_images_by_match)
 capture_add_executable(split_image)
 capture_add_executable(split_movie)
 

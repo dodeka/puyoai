@@ -14,12 +14,16 @@
 #include "base/time.h"
 #include "core/plan/plan.h"
 #include "core/rensa/rensa_detector.h"
+#include "core/pattern/decision_book.h"
 #include "core/core_field.h"
 #include "core/frame_request.h"
 #include "core/player_state.h"
-#include "cpu/peria/control.h"
-#include "cpu/peria/evaluator.h"
-#include "cpu/peria/player_hands.h"
+
+#include "search_without_risk.h"
+#include "control.h"
+#include "evaluator.h"
+#include "player_hands.h"
+#include "pattern.h"
 
 namespace peria {
 
@@ -30,29 +34,64 @@ Ai::~Ai() {}
 DropDecision Ai::think(int frame_id,
                        const CoreField& field,
                        const KumipuyoSeq& seq,
-                       const PlayerState& my_state,
-                       const PlayerState& enemy_state,
+                       const PlayerState& me,
+                       const PlayerState& enemy,
                        bool fast) const {
-  UNUSED_VARIABLE(frame_id);
   UNUSED_VARIABLE(fast);
-  using namespace std::placeholders;
+
+  Control control;
+  control.decision= Decision(3, 2);
+  control.message = "No choice";
+  control.score = -10000;
+
+  // Check if it is in Joski template.
+  DropDecision joseki = checkJoseki(field, seq);
+  if (joseki.isValid()) {
+    return joseki;
+  }
+
+  // Check if the enemy is firing the main rensa (Honsen)
+  if (SearchWithoutRisk::shouldRun(enemy)) {
+    SearchWithoutRisk search(me, seq, enemy.rensaFinishingFrameId() - frame_id);
+    Decision decision = search.run();
+    std::ostringstream oss;
+    if (decision.isValid()) {
+      oss << "Honki mode\n";
+    } else {
+      oss << "Honki muri\n";
+      decision = Decision(3, 2);
+    }
+    oss << "Beam run " << search.countBeam() << " times";
+    return DropDecision(decision, oss.str());
+  }
+
+  Evaluator evaluator(me, enemy, enemy_hands_, &control);
+
+  // if enemy is firing a rensa, we use its after state.
+  PlayerState me2(me);
+  PlayerState enemy2(enemy);
+  if (enemy2.isRensaOngoing()) {
+    if (enemy2.hasZenkeshi)
+      me2.pendingOjama += 6 * 5;
+    enemy2.hasZenkeshi = enemy2.field.isZenkeshi();
+    int use_score = enemy2.unusedScore + enemy2.currentRensaResult.score;
+    me2.pendingOjama += use_score / 70;
+    enemy2.unusedScore = use_score % 70;
+  }
+  enemy2.fixedOjama += enemy2.pendingOjama;
+  enemy2.pendingOjama = 0;
+  auto callback = std::bind(IterationCallback,
+                            0, frame_id, me2, enemy2, seq.subsequence(1),
+                            evaluator, std::placeholders::_1);
 
   std::int64_t start_ms = currentTimeInMillis();
-  
-  Control control;
-  Evaluator evaluator(frame_id, my_state, enemy_state, enemy_hands_, &control);
-  Plan::iterateAvailablePlans(field, seq, 2,
-                              [&evaluator](const RefPlan& plan) { evaluator.EvalPlan(plan); });
-
+  Plan::iterateAvailablePlans(field, seq, 1, callback);
   std::int64_t end_ms = currentTimeInMillis();
 
   std::ostringstream oss;
-  oss << ",ThinkTime:_" << (end_ms - start_ms) << "ms";
-  if (enemy_state.isRensaOngoing()) {
-    const RensaResult& result = enemy_state.currentRensaResult;
-    oss << ",Enemy:_Going(" << result.score << "_in_" << result.frames << ")";
-  }
+  oss << "\nThinkTime: " << (end_ms - start_ms) << "ms";
   control.message += oss.str();
+
   return DropDecision(control.decision, control.message);
 }
 
@@ -88,6 +127,88 @@ void Ai::onGroundedForEnemy(const FrameRequest& frame_request) {
         possible.push_back(rensa);
         return result;
       });
+}
+
+DropDecision Ai::checkJoseki(const CoreField& field, const KumipuyoSeq& seq) const {
+  DecisionBook* joseki = Pattern::getJoseki();
+  DCHECK(joseki);
+  Decision decision = joseki->nextDecision(field, seq);
+  return DropDecision(decision, "By JOSEKI book");
+}
+
+namespace {
+
+int simulateOjama(int ojama, CoreField& field) {
+  int fall_ojama = std::min(ojama, 5 * 6);
+  field.fallOjama(fall_ojama / 6);
+  int x[] = {1,2,3,4,5,6};
+  std::random_shuffle(x, x + 6);
+  for (int i = 0; i < fall_ojama % 6; ++i) {
+    field.dropPuyoOn(x[i], PuyoColor::OJAMA);
+  }
+  return ojama - fall_ojama;
+}
+
+}
+
+// static
+void Ai::IterationCallback(int step, int start_frame, PlayerState me, PlayerState enemy,
+                           const KumipuyoSeq& next, Evaluator& evaluator, const RefPlan& plan) {
+  int end_frame = start_frame + plan.totalFrames();
+  me.field = plan.field();
+  if (plan.isRensaPlan()) {
+    if (me.hasZenkeshi)
+      enemy.fixedOjama += 5 * 6;
+    me.hasZenkeshi = me.field.isZenkeshi();
+    me.currentRensaResult = plan.rensaResult();
+    int use_score = me.unusedScore + me.currentRensaResult.score;
+    enemy.fixedOjama += use_score / 70;
+    me.unusedScore = use_score % 70;
+  }
+
+  // Update ojama status
+  int sending_ojama = enemy.fixedOjama;
+  int receiving_ojama = me.pendingOjama + me.fixedOjama;
+  if (sending_ojama > receiving_ojama) {
+    me.pendingOjama = 0;
+    me.fixedOjama = 0;
+    enemy.fixedOjama = sending_ojama - receiving_ojama;
+  } else if (sending_ojama > me.fixedOjama) {
+    me.fixedOjama = 0;
+    me.pendingOjama = receiving_ojama - sending_ojama;
+    enemy.fixedOjama = 0;
+  } else { // sending_ojama < me.fixedOjama
+    me.fixedOjama -= sending_ojama;;
+    enemy.fixedOjama = 0;
+  }
+
+  // If enemy's rensa finishes, my pending ojamas are fixed.
+  if (enemy.rensaFinishingFrameId() < end_frame) {
+    me.fixedOjama += me.pendingOjama;
+    me.pendingOjama = 0;
+  }
+
+  // Simulate ojama falls
+  me.fixedOjama = simulateOjama(me.fixedOjama, me.field);
+  enemy.fixedOjama = simulateOjama(enemy.fixedOjama, enemy.field);
+
+  // If I die, it should not be evaluated.
+  if (!me.field.isEmpty(3, 12))
+    return;
+
+  if (step == 0) {
+    evaluator.setDecision(plan.decisions().front());
+  }
+
+  // Iterate more.
+  if (step < 1 && next.size()) {
+    auto callback = std::bind(IterationCallback,
+                              step + 1, end_frame, me, enemy, next.subsequence(1), evaluator,
+                              std::placeholders::_1);
+    Plan::iterateAvailablePlans(me.field, next, 1, callback);
+  } else {
+    evaluator.EvalPlan(me, enemy, plan);
+  }
 }
 
 }  // namespace peria

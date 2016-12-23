@@ -1,5 +1,6 @@
 #include "base/strings.h"
 
+#include <cctype>
 #include <sstream>
 
 using namespace std;
@@ -62,6 +63,16 @@ string join(const vector<string>& strs, const string& sep)
         os << sep << strs[i];
     }
     return os.str();
+}
+
+bool isAllDigits(const std::string& s)
+{
+    for (char c : s) {
+        if (!isdigit(c))
+            return false;
+    }
+
+    return true;
 }
 
 } // namespace strings

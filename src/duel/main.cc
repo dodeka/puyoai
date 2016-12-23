@@ -12,8 +12,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "base/file.h"
-#include "core/httpd/http_handler.h"
+#include "base/file/path.h"
 #include "core/server/connector/connector_manager.h"
 #include "core/server/connector/human_connector.h"
 #include "core/server/game_state.h"
@@ -26,7 +25,8 @@
 #include "duel/puyofu_recorder.h"
 
 #ifdef USE_HTTPD
-#include "core/httpd/http_server.h"
+#include "net/httpd/http_handler.h"
+#include "net/httpd/http_server.h"
 #endif
 
 #ifdef USE_SDL2
@@ -73,6 +73,7 @@ public:
     GameStateHandler() {}
     virtual ~GameStateHandler() {}
 
+#if USE_HTTPD
     void handle(const HttpRequest& req, HttpResponse* resp) {
         UNUSED_VARIABLE(req);
 
@@ -81,6 +82,7 @@ public:
             return;
         resp->setContent(gameState_->toJson());
     }
+#endif
 
     virtual void onUpdate(const GameState& gameState) override {
         lock_guard<mutex> lock(mu_);
@@ -130,9 +132,11 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    ConnectorManager manager(true);
-    manager.setConnector(0, Connector::create(0, string(argv[1])));
-    manager.setConnector(1, Connector::create(1, string(argv[2])));
+    ConnectorManager manager(false);
+    manager.setPlayer(0, argv[1]);
+    manager.setPlayer(1, argv[2]);
+
+    manager.start();
 
 #ifdef USE_HTTPD
     unique_ptr<GameStateHandler> gameStateHandler;
@@ -199,7 +203,7 @@ int main(int argc, char* argv[])
         mainWindow->addDrawer(userEventDrawer.get());
 
         for (int i = 0; i < 2; ++i) {
-            Connector* c = manager.connector(i);
+            ServerConnector* c = manager.connector(i);
             if (c->isHuman()) {
                 HumanConnector* hc = static_cast<HumanConnector*>(c);
                 unique_ptr<MainWindow::EventListener> listener(new HumanConnectorKeyListener(hc));
@@ -273,6 +277,7 @@ int main(int argc, char* argv[])
     if (mainWindow.get()) {
         mainWindow->runMainLoop();
         duelServer.stop();
+        manager.stop();
     }
 
     if (commentator.get())

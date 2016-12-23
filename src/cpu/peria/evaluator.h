@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "core/decision.h"
 
 class CoreField;
 class RefPlan;
@@ -15,20 +16,23 @@ struct PlayerHands;
 // Evaluator evaluates something.
 class Evaluator {
  public:
-  Evaluator(int, const PlayerState&, const PlayerState&, const PlayerHands&, Control*);
-  void EvalPlan(const RefPlan& plan);
-  
+  Evaluator(const PlayerState& me, const PlayerState& enemy, const PlayerHands&, Control*);
+  void EvalPlan(const PlayerState& me, const PlayerState& enemy, const RefPlan& plan);
+
+  // TODO: remove this method.
+  void setDecision(const Decision& decision) { decision_ = decision; }
+
  private:
   struct Genre {
     std::string name;
     int score;
     std::string message;
+
+    Genre(const std::string& n) : name(n), score(0) {}
   };
 
-  int EvalField(const CoreField& field, std::string* message);
-  int EvalUke(const CoreField& field, std::string* message);
-  int EvalRensa(const RefPlan& plan, std::string* message);
-  int EvalTime(const RefPlan& plan, std::string* message);
+  Genre EvalField(const PlayerState& me, const PlayerState& enemy, const RefPlan& plan);
+  Genre EvalRensa(const PlayerState& me, const PlayerState& enemy, const RefPlan& plan);
 
   // Field related eval functions
   int PatternMatch(const CoreField& field, std::string* message);
@@ -36,13 +40,15 @@ class Evaluator {
   int Future(const CoreField& field);
 
   // Eval functions for Rensa.
-  int EvalTsubushi(const RefPlan& plan);
+  int EvalTsubushi(const PlayerState& me, const PlayerState& enemy);
   int EvalEnemyPlan();
 
-  int frame_id;
-  const PlayerState& me;
-  const PlayerState& enemy;
+  const PlayerState& me_from;
+  const PlayerState& enemy_from;
   const PlayerHands& enemy_hands;
+  Decision decision_;
+
+  // output
   Control* control;
 };
 

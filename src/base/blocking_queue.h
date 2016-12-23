@@ -1,6 +1,7 @@
 #ifndef BASE_BLOCKING_QUEUE_H_
 #define BASE_BLOCKING_QUEUE_H_
 
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -17,8 +18,13 @@ public:
     size_t available() const { return capacity_ - size(); }
     size_t capacity() const { return capacity_; }
 
+    void push(T&& v);
     void push(const T& v);
     T take();
+
+    // Return true if succeeded, false if timeout.
+    bool takeWithTimeout(const std::chrono::steady_clock::time_point& timeout, T* v);
+    bool takeWithTimeout(const std::chrono::seconds& d, T* v);
 
 private:
     mutable std::mutex mu_;
@@ -26,6 +32,13 @@ private:
     mutable std::condition_variable take_cond_var_;
     const size_t capacity_;
     std::queue<T> q_;
+};
+
+template<typename T>
+class InfiniteBlockingQueue : public BlockingQueue<T>
+{
+public:
+    InfiniteBlockingQueue() : BlockingQueue<T>(SIZE_MAX) {}
 };
 
 template<typename T>
@@ -46,6 +59,18 @@ size_t BlockingQueue<T>::size() const
 {
     std::unique_lock<std::mutex> lock(mu_);
     return q_.size();
+}
+
+template<typename T>
+void BlockingQueue<T>::push(T&& v)
+{
+    std::unique_lock<std::mutex> lock(mu_);
+    while (capacity_ <= q_.size()) {
+        push_cond_var_.wait(lock);
+    }
+
+    q_.push(std::move(v));
+    take_cond_var_.notify_one();
 }
 
 template<typename T>
@@ -72,6 +97,27 @@ T BlockingQueue<T>::take()
     q_.pop();
     push_cond_var_.notify_one();
     return t;
+}
+
+template<typename T>
+bool BlockingQueue<T>::takeWithTimeout(const std::chrono::seconds& d, T* v)
+{
+    auto timeout = std::chrono::steady_clock::now() + d;
+    return takeWithTimeout(timeout, v);
+}
+
+template<typename T>
+bool BlockingQueue<T>::takeWithTimeout(const std::chrono::steady_clock::time_point& timeout, T* v)
+{
+    std::unique_lock<std::mutex> lock(mu_);
+    if (!take_cond_var_.wait_until(lock, timeout, [this]() { return !q_.empty(); })) {
+        return false;
+    }
+
+    *v = std::move(q_.front());
+    q_.pop();
+    push_cond_var_.notify_one();
+    return true;
 }
 
 } // namespace base

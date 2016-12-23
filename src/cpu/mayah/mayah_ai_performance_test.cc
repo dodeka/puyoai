@@ -11,16 +11,17 @@
 #include "core/probability/puyo_set_probability.h"
 
 #include "mayah_ai.h"
+#include "pattern_thinker.h"
 
 using namespace std;
 
-unique_ptr<MayahAI> makeAI(Executor* executor)
+unique_ptr<MayahAI> makeAI(std::unique_ptr<Executor> executor)
 {
     int argc = 1;
     char arg[] = "mayah";
     char* argv[] = {arg, nullptr};
 
-    MayahAI* ai = new MayahAI(argc, argv, executor);
+    MayahAI* ai = new MayahAI(argc, argv, std::move(executor));
 
     // TODO(mayah): should call gameWillBegin.
     FrameRequest req;
@@ -62,8 +63,7 @@ void runTest(int depth, int iteration, const CoreField& cf, const KumipuyoSeq& k
 {
     TimeStampCounterData tsc;
 
-    unique_ptr<Executor> executor(Executor::makeDefaultExecutor());
-    unique_ptr<MayahAI> ai(makeAI(executor.get()));
+    unique_ptr<MayahAI> ai(makeAI(Executor::makeDefaultExecutor()));
     int frameId = 1;
 
     for (int i = 0; i < 3; ++i) {
@@ -200,7 +200,7 @@ TEST(MayahAIPerformanceTest, slow_pattern_from_real_4)
                 "BRRYRR");
     KumipuyoSeq seq("GBBYRB");
 
-    runTest(MayahAI::DEFAULT_DEPTH, MayahAI::DEFAULT_NUM_ITERATION, f, seq);
+    runTest(PatternThinker::DEFAULT_DEPTH, PatternThinker::DEFAULT_NUM_ITERATION, f, seq);
 }
 
 TEST(MayahAIPerformanceTest, slow_pattern_from_real_5)
@@ -215,7 +215,7 @@ TEST(MayahAIPerformanceTest, slow_pattern_from_real_5)
                 "BBBRRR");
     KumipuyoSeq seq("GBGBRGBB");
 
-    runTest(MayahAI::DEFAULT_DEPTH, MayahAI::DEFAULT_NUM_ITERATION, f, seq);
+    runTest(PatternThinker::DEFAULT_DEPTH, PatternThinker::DEFAULT_NUM_ITERATION, f, seq);
 }
 
 TEST(MayahAIPerformanceTest, slow_pattern_from_real_6)
@@ -233,7 +233,7 @@ TEST(MayahAIPerformanceTest, slow_pattern_from_real_6)
                  "RRRYRR");
 
     KumipuyoSeq seq("BRGY");
-    runTest(MayahAI::DEFAULT_DEPTH, MayahAI::DEFAULT_NUM_ITERATION, cf, seq);
+    runTest(PatternThinker::DEFAULT_DEPTH, PatternThinker::DEFAULT_NUM_ITERATION, cf, seq);
 }
 
 int main(int argc, char* argv[])

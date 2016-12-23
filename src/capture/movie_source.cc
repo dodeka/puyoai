@@ -4,6 +4,11 @@
 
 using namespace std;
 
+// TODO: Remove this re-definition. It is a workaround for old libavutil.
+#ifndef PIX_FMT_RGB24
+#define PIX_FMT_RGB24 AV_PIX_FMT_RGB24
+#endif
+
 MovieSource::MovieSource(const char* filename) :
     filename_(filename),
     waitUntilTrue_(true),
@@ -115,8 +120,10 @@ UniqueSDLSurface MovieSource::getNextFrame()
 {
     int frame_finished;
     while (true) {
-        if (av_read_frame(format_, &packet_) < 0)
+        if (av_read_frame(format_, &packet_) < 0) {
+            done_ = true;
             return emptyUniqueSDLSurface();
+        }
 
         if (packet_.stream_index == video_index_) {
             avcodec_decode_video2(codec_, frame_, &frame_finished, &packet_);

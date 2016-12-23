@@ -33,12 +33,6 @@ using namespace std;
 
 // ----------------------------------------------------------------------
 
-PreEvalResult PreEvaluator::preEval(const CoreField& /*currentField*/)
-{
-    PreEvalResult preEvalResult;
-    return preEvalResult;
-}
-
 MidEvalResult MidEvaluator::eval(const RefPlan& plan, const CoreField& currentField, double score)
 {
     UNUSED_VARIABLE(currentField);
@@ -135,6 +129,7 @@ void Evaluator<ScoreCollector>::evalStrategy(const RefPlan& plan,
         }
     }
 
+#if 0
     if (plan.totalOjama() >= 6) {
         if (plan.score() >= scoreForOjama(std::max(0, plan.totalOjama() - 3))) {
             sc_->addScore(STRATEGY_TAIOU, 0.9);
@@ -142,6 +137,7 @@ void Evaluator<ScoreCollector>::evalStrategy(const RefPlan& plan,
             return;
         }
     }
+#endif
 #endif
 
     if (plan.field().isZenkeshi()) {
@@ -207,7 +203,7 @@ void Evaluator<ScoreCollector>::evalStrategy(const RefPlan& plan,
             return;
         }
 
-        if (plan.chains() == 2 && plan.score() >= scoreForOjama(15) && rensaTreeValue >= -5) {
+        if (plan.chains() == 2 && plan.score() >= scoreForOjama(15) && rensaTreeValue >= 5) {
             sc_->addScore(STRATEGY_TSUBUSHI, 1);
             sc_->addScore(STRATEGY_FRAMES, plan.totalFrames());
             return;
@@ -291,7 +287,6 @@ void Evaluator<ScoreCollector>::eval(const RefPlan& plan,
                                      int maxIteration,
                                      const PlayerState& me,
                                      const PlayerState& enemy,
-                                     const PreEvalResult& /*preEvalResult*/,
                                      const MidEvalResult& midEvalResult,
                                      bool fast,
                                      bool usesRensaHandTree,
@@ -316,6 +311,7 @@ void Evaluator<ScoreCollector>::eval(const RefPlan& plan,
     int rensaCounts[20] {};
 
     int sideChainMaxScore = 0;
+    int fastChain4MaxScore = 0;
     int fastChain6MaxScore = 0;
     int fastChain10MaxScore = 0;
     int maxVirtualRensaResultScore = 0;
@@ -396,6 +392,9 @@ void Evaluator<ScoreCollector>::eval(const RefPlan& plan,
 
         const ColumnPuyoListProbability* cplp = ColumnPuyoListProbability::instanceSlow();
         int necessaryKumipuyos = cplp->necessaryKumipuyos(puyosToComplement);
+        if (necessaryKumipuyos <= 2 && fastChain4MaxScore < rensaResult.score) {
+            fastChain4MaxScore = rensaResult.score;
+        }
         if (necessaryKumipuyos <= 3 && fastChain6MaxScore < rensaResult.score) {
             fastChain6MaxScore = rensaResult.score;
         }
@@ -515,10 +514,27 @@ void Evaluator<ScoreCollector>::eval(const RefPlan& plan,
 
 #if 1
     // fast chain
+    if (fastChain6MaxScore >= gazeResult.estimateMaxScore(currentFrameId + NUM_FRAMES_OF_ONE_HAND * 3, enemy)) {
+        sc_->addScore(KEEP_FAST_LARGER_THEN_ENEMY, 1);
+    }
+    if (fastChain4MaxScore >= scoreForOjama(18)) {
+        sc_->addScore(KEEP_FAST_4_CHAIN, 1);
+    }
     if (fastChain6MaxScore >= scoreForOjama(18)) {
         sc_->addScore(KEEP_FAST_6_CHAIN, 1);
     }
     if (fastChain10MaxScore >= scoreForOjama(30)) {
+        sc_->addScore(KEEP_FAST_10_CHAIN, 1);
+    }
+#endif
+#if 0
+   if (fastChain4MaxScore >= gazeResult.estimateMaxScore(currentFrameId + NUM_FRAMES_OF_ONE_HAND * 2, enemy)) {
+        sc_->addScore(KEEP_FAST_4_CHAIN, 1);
+    }
+    if (fastChain6MaxScore >= gazeResult.estimateMaxScore(currentFrameId + NUM_FRAMES_OF_ONE_HAND * 3, enemy)) {
+        sc_->addScore(KEEP_FAST_6_CHAIN, 1);
+    }
+    if (fastChain10MaxScore >= gazeResult.estimateMaxScore(currentFrameId + NUM_FRAMES_OF_ONE_HAND * 5, enemy)) {
         sc_->addScore(KEEP_FAST_10_CHAIN, 1);
     }
 #endif

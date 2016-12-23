@@ -11,7 +11,6 @@
 
 using namespace std;
 
-DEFINE_string(recognition_dir, RECOGNITION_DIR, "the directory path to recognition dir.");
 DEFINE_bool(strict_ojama_recognition, true, "use strict ojama recognition.");
 
 namespace {
@@ -19,8 +18,10 @@ const int BOX_THRESHOLD = 15;
 const int SMALLER_BOX_THRESHOLD = 7;
 }
 
-static RealColor toRealColor(const HSV& hsv)
+static RealColor toRealColor(const RGB& rgb)
 {
+    HSV hsv = rgb.toHSV();
+
     if (hsv.v < 38)
         return RealColor::RC_EMPTY;
 
@@ -46,6 +47,8 @@ static RealColor toRealColor(const HSV& hsv)
 
     // Hard to distinguish RED and PURPLE.
     if (340 <= hsv.h && hsv.h <= 360) {
+        if (rgb.r >= rgb.b + 50)
+            return RealColor::RC_RED;
         if (160 < hsv.s + hsv.v)
             return RealColor::RC_RED;
         if (50 < hsv.v)
@@ -121,7 +124,7 @@ static RealColor estimateRealColorFromColorCount(int colorCount[NUM_REAL_COLORS]
 }
 
 ACAnalyzer::ACAnalyzer() :
-    recognizer_(FLAGS_recognition_dir)
+    recognizer_()
 {
 }
 
@@ -143,11 +146,10 @@ RealColor ACAnalyzer::analyzeBox(const SDL_Surface* surface, const Box& b,
             SDL_GetRGB(c, surface->format, &r, &g, &b);
 
             RGB rgb(r, g, b);
-            HSV hsv = rgb.toHSV();
-
-            RealColor rc = toRealColor(hsv);
+            RealColor rc = toRealColor(rgb);
 
             if (showsColor == ShowDebugMessage::SHOW_DEBUG_MESSAGE) {
+                HSV hsv = rgb.toHSV();
                 // TODO(mayah): stringstream?
                 char buf[240];
                 sprintf(buf, "%3d %3d : %3d %3d %3d : %7.3f %7.3f %7.3f : %s",
@@ -343,7 +345,7 @@ bool ACAnalyzer::detectOjamaDrop(const SDL_Surface* currentSurface,
             SDL_GetRGB(c1, currentSurface->format, &r1, &g1, &b1);
 
             // Since 3 SET MATCH etc. has RED or GREEN, we'd like to ignore them.
-            RealColor rc = toRealColor(RGB(r1, g1, b1).toHSV());
+            RealColor rc = toRealColor(RGB(r1, g1, b1));
             if (rc == RealColor::RC_RED || rc == RealColor::RC_GREEN)
                 continue;
 
@@ -386,8 +388,7 @@ bool ACAnalyzer::isLevelSelect(const SDL_Surface* surface)
                 SDL_GetRGB(c, surface->format, &r, &g, &b);
 
                 RGB rgb(r, g, b);
-                HSV hsv = rgb.toHSV();
-                RealColor rc = toRealColor(hsv);
+                RealColor rc = toRealColor(rgb);
 
                 if (rc == RealColor::RC_OJAMA)
                     ++whiteCount;
@@ -413,8 +414,7 @@ bool ACAnalyzer::isGameFinished(const SDL_Surface* surface)
             SDL_GetRGB(c, surface->format, &r, &g, &b);
 
             RGB rgb(r, g, b);
-            HSV hsv = rgb.toHSV();
-            RealColor rc = toRealColor(hsv);
+            RealColor rc = toRealColor(rgb);
 
             if (rc == RealColor::RC_OJAMA)
                 ++whiteCount;
@@ -448,9 +448,7 @@ bool ACAnalyzer::isMatchEnd(const SDL_Surface* surface)
             Uint8 r, g, b;
             SDL_GetRGB(c, surface->format, &r, &g, &b);
             RGB rgb(r, g, b);
-            HSV hsv = rgb.toHSV();
-
-            RealColor rc = toRealColor(hsv);
+            RealColor rc = toRealColor(rgb);
             if (rc == RealColor::RC_RED)
                 ++red;
             if (rc == RealColor::RC_BLUE)
@@ -500,17 +498,14 @@ void ACAnalyzer::drawBoxWithAnalysisResult(SDL_Surface* surface, const Box& box)
             Uint32 c = getpixel(surface, bx, by);
             Uint8 r, g, b;
             SDL_GetRGB(c, surface->format, &r, &g, &b);
-            RGB rgb(r, g, b);
-            HSV hsv = rgb.toHSV();
-
-            RealColor rc = toRealColor(hsv);
+            RealColor rc = toRealColor(RGB(r, g, b));
             putpixel(surface, bx, by, toPixelColor(surface, rc));
         }
     }
 }
 
 // static
-RealColor ACAnalyzer::estimateRealColor(const HSV& hsv)
+RealColor ACAnalyzer::estimatePixelRealColor(const RGB& rgb)
 {
-    return toRealColor(hsv);
+    return toRealColor(rgb);
 }

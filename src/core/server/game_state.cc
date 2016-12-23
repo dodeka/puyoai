@@ -33,13 +33,16 @@ string GameState::toJson() const
     for (int i = 0; i < 2; ++i) {
         if (playerGameState_[i].playable) {
             const KumipuyoPos& pos = playerGameState_[i].kumipuyoPos;
-            const Kumipuyo& kp = playerGameState_[i].kumipuyoSeq.front();
-            f[i].setColor(pos.axisX(), pos.axisY(), kp.axis);
-            f[i].setColor(pos.childX(), pos.childY(), kp.child);
+            if (!playerGameState_[i].kumipuyoSeq.isEmpty()) {
+                const Kumipuyo& kp = playerGameState_[i].kumipuyoSeq.front();
+                f[i].setColor(pos.axisX(), pos.axisY(), kp.axis);
+                f[i].setColor(pos.childX(), pos.childY(), kp.child);
+            }
         }
     }
 
     Json::Value root;
+    root["result"] = toString(gameResult());
     root["p1"] = f[0].toString();
     root["s1"] = playerGameState_[0].score;
     root["o1"] = playerGameState_[0].ojama();
@@ -63,9 +66,11 @@ string GameState::toDebugString() const
     for (int i = 0; i < 2; ++i) {
         if (playerGameState_[i].playable) {
             const KumipuyoPos& pos = playerGameState_[i].kumipuyoPos;
-            const Kumipuyo& kp = playerGameState_[i].kumipuyoSeq.front();
-            f[i].setColor(pos.axisX(), pos.axisY(), kp.axis);
-            f[i].setColor(pos.childX(), pos.childY(), kp.child);
+            if (!playerGameState_[i].kumipuyoSeq.isEmpty()) {
+                const Kumipuyo& kp = playerGameState_[i].kumipuyoSeq.front();
+                f[i].setColor(pos.axisX(), pos.axisY(), kp.axis);
+                f[i].setColor(pos.childX(), pos.childY(), kp.child);
+            }
         }
     }
 

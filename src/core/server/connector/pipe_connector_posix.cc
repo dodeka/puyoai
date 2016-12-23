@@ -18,10 +18,8 @@
 
 using namespace std;
 
-DEFINE_bool(realtime, true, "use realtime");
-
 // static
-unique_ptr<Connector> PipeConnectorPosix::create(int playerId, const string& programName)
+unique_ptr<ServerConnector> PipeConnectorPosix::create(int playerId, const string& programName)
 {
     CHECK(0 <= playerId && playerId < 10) << playerId;
 
@@ -38,7 +36,7 @@ unique_ptr<Connector> PipeConnectorPosix::create(int playerId, const string& pro
         int downlink_fd = open(downlink_fifo.c_str(), O_WRONLY);
         CHECK(downlink_fd >= 0);
 
-        unique_ptr<Connector> connector(new PipeConnectorPosix(playerId, downlink_fd, uplink_fd));
+        unique_ptr<ServerConnector> connector(new PipeConnectorPosix(playerId, downlink_fd, uplink_fd));
         return connector;
     }
 
@@ -59,7 +57,7 @@ unique_ptr<Connector> PipeConnectorPosix::create(int playerId, const string& pro
         // Server.
         LOG(INFO) << "Created a child process (pid = " << pid << ")";
 
-        unique_ptr<Connector> connector(new PipeConnectorPosix(playerId, fd_field_status[1], fd_command[0]));
+        unique_ptr<ServerConnector> connector(new PipeConnectorPosix(playerId, fd_field_status[1], fd_command[0]));
         close(fd_field_status[0]);
         close(fd_command[1]);
 
@@ -84,80 +82,7 @@ unique_ptr<Connector> PipeConnectorPosix::create(int playerId, const string& pro
         PLOG(FATAL) << "Failed to start a child process. ";
 
     LOG(FATAL) << "should not be reached.";
-    return unique_ptr<Connector>();
-}
-
-// static
-bool PipeConnectorPosix::pollAndReceive(bool waitTimeout, int frameId, const vector<PipeConnector*>& pipeConnectors, vector<FrameResponse>* cfr)
-{
-    TimePoint startTimePoint = Clock::now();
-
-    pollfd pollfds[NUM_PLAYERS];
-    for (size_t i = 0; i < pipeConnectors.size(); ++i) {
-        pollfds[i].fd = static_cast<PipeConnectorPosix*>(pipeConnectors[i])->readerFd_;
-        pollfds[i].events = POLLIN;
-    }
-
-    bool connection = true;
-    bool received_data_for_this_frame[NUM_PLAYERS] {};
-    while (true) {
-        int timeout_ms = 0;
-        if (waitTimeout) {
-            // Check timeout.
-            timeout_ms = getRemainingMilliSeconds(startTimePoint);
-            if (timeout_ms <= 0) {
-                break;
-            }
-        }
-
-        // Wait for user input.
-        int actions = poll(pollfds, pipeConnectors.size(), timeout_ms);
-
-        if (actions < 0) {
-            LOG(ERROR) << strerror(errno);
-            break;
-        } else if (actions == 0) {
-            if (!waitTimeout)
-                break;
-            continue;
-        }
-
-        for (size_t i = 0; i < pipeConnectors.size(); ++i) {
-            PipeConnectorPosix* connector = static_cast<PipeConnectorPosix*>(pipeConnectors[i]);
-            if (pollfds[i].revents & POLLIN) {
-                FrameResponse response;
-                if (connector->receive(&response)) {
-                    cfr[connector->playerId()].push_back(response);
-                    if (response.frameId == frameId) {
-                        received_data_for_this_frame[i] = true;
-                    }
-                }
-            } else if (pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-                LOG(ERROR) << "[P" << connector->playerId() << "] Closed the connection.";
-                connection = false;
-                connector->setClosed(true);
-            }
-        }
-
-        // If a realtime game flag is not set, do not wait for timeout, and
-        // continue the game as soon as possible.
-        if (!FLAGS_realtime) {
-            bool all_data_is_read = true;
-            for (size_t i = 0; i < pipeConnectors.size(); ++i) {
-                if (!received_data_for_this_frame[i]) {
-                    all_data_is_read = false;
-                }
-            }
-            if (all_data_is_read) {
-                break;
-            }
-        }
-    }
-
-    int usec = getUsecFromStart(startTimePoint);
-    LOG(INFO) << "Frame " << frameId  << " took " << usec << " [us]";
-
-    return connection;
+    return unique_ptr<ServerConnector>();
 }
 
 PipeConnectorPosix::PipeConnectorPosix(int player, int writerFd, int readerFd) :

@@ -11,12 +11,12 @@
 
 using namespace std;
 
-static unique_ptr<DebuggableMayahAI> makeAI(Executor* executor = nullptr)
+static unique_ptr<DebuggableMayahAI> makeAI(std::unique_ptr<Executor> executor = std::unique_ptr<Executor>())
 {
     int argc = 1;
     char arg[] = "mayah";
     char* argv[] = {arg};
-    return unique_ptr<DebuggableMayahAI>(new DebuggableMayahAI(argc, argv, executor));
+    return unique_ptr<DebuggableMayahAI>(new DebuggableMayahAI(argc, argv, std::move(executor)));
 }
 
 // Parallel execution should return the same result as single thread execution.
@@ -27,11 +27,10 @@ TEST(MayahAITest, parallel)
         "YY BBB"
         "RRRGGG");
 
-    unique_ptr<Executor> executor(Executor::makeDefaultExecutor());
     KumipuyoSeq seq("GGRRBY");
 
     auto ai = makeAI();
-    auto parallelAi = makeAI(executor.get());
+    auto parallelAi = makeAI(Executor::makeDefaultExecutor());
 
     ThoughtResult thoughtResult = ai->thinkPlan(2, f, seq, PlayerState(), PlayerState(), 2, 3);
     ThoughtResult parallelThoughtResult = parallelAi->thinkPlan(2, f, seq, PlayerState(), PlayerState(), 2, 3);
@@ -88,7 +87,7 @@ TEST(MayahAITest, fromReal1)
     enemy.currentChainStartedFrameId = 1000;
     enemy.currentRensaResult = RensaResult(5, 10000, 346, false);
 
-    ThoughtResult thoughtResult = ai->thinkPlan(1328, myField, mySeq, me, enemy, MayahAI::DEFAULT_DEPTH, MayahAI::DEFAULT_NUM_ITERATION);
+    ThoughtResult thoughtResult = ai->thinkPlan(1328, myField, mySeq, me, enemy, PatternThinker::DEFAULT_DEPTH, PatternThinker::DEFAULT_NUM_ITERATION);
 
     EXPECT_TRUE(thoughtResult.plan.isRensaPlan());
 }
@@ -139,7 +138,7 @@ TEST(MayahAITest, fromReal2)
     enemy.currentChainStartedFrameId = 1000;
     enemy.currentRensaResult = RensaResult(5, 10000, 346, false);
 
-    ThoughtResult thoughtResult = ai->thinkPlan(1352, myField, mySeq, me, enemy, MayahAI::DEFAULT_DEPTH, MayahAI::DEFAULT_NUM_ITERATION);
+    ThoughtResult thoughtResult = ai->thinkPlan(1352, myField, mySeq, me, enemy, PatternThinker::DEFAULT_DEPTH, PatternThinker::DEFAULT_NUM_ITERATION);
 
     EXPECT_TRUE(thoughtResult.plan.isRensaPlan());
 }
@@ -163,7 +162,7 @@ TEST(MayahAITest, zenkeshi1)
     PlayerState me;
     PlayerState enemy;
 
-    ThoughtResult thoughtResult = ai->thinkPlan(10, myField, mySeq, me, enemy, MayahAI::DEFAULT_DEPTH, MayahAI::DEFAULT_NUM_ITERATION);
+    ThoughtResult thoughtResult = ai->thinkPlan(10, myField, mySeq, me, enemy, PatternThinker::DEFAULT_DEPTH, PatternThinker::DEFAULT_NUM_ITERATION);
 
     EXPECT_TRUE(thoughtResult.plan.firstDecision() == Decision(3, 0) || thoughtResult.plan.firstDecision() == Decision(3, 3));
 }

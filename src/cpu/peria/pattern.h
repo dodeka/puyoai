@@ -2,48 +2,80 @@
 
 #include <deque>
 #include <istream>
-#include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
+
+#include <toml/toml.h>
 
 #include "core/core_field.h"
+#include "core/field_bits.h"
+
+class DecisionBook;
 
 namespace peria {
 
+class DynamicPatternBook;
+class StaticPatternBook;
+
 class Pattern {
  public:
-  typedef std::map<char, std::map<PuyoColor, int> > MatchingCounts;
+  static DecisionBook* getJoseki();
+  static DynamicPatternBook* getDynamicPattern();
+  static StaticPatternBook* getStaticPattern();
+};
 
-  static void ReadBook(std::istream& is);
-  static const std::vector<Pattern>& GetAllPattern();
-  // TODO: Make a Book class which has Pattern's, and this method should be
-  // in that class.
-  static void BuildCombination();
+// DynamicPattern class figures where puyos are being vanished
+class DynamicPattern {
+ public:
+  explicit DynamicPattern(const toml::Value&);
 
-  int Match(const CoreField& field) const;
-  const std::string& name() const { return name_; }
-  int score() const { return score_; }
+  // TODO: |bits| is a key in PatternBook, so we don't need to keep it here
+  FieldBits bits;
+  std::string name;
+  int score;
 
-  bool MergeWith(const Pattern& pattern);
+  static const int kDefaultScore;
+};
+
+class DynamicPatternBook {
+ public:
+  bool load(const std::string& filename);
+  bool loadFromString(const std::string& str);
+  bool loadFromValue(const toml::Value& book);
+
+  // Simulate possible rensas, and find matching patterns
+  int iteratePatterns(const CoreField& field, std::string* name);
+
+  size_t size() { return book_.size(); }
 
  protected:
-  typedef std::pair<char, char> Neighbor;
+  using Book = std::unordered_map<FieldBits, DynamicPattern>;
+  Book book_;
+};
 
-  bool ParseBook(std::istream& is);
-  void Optimize();
-  void AppendField(std::string line);
-  int GetScore(MatchingCounts& matching) const;
+// StaticPattern class figures where non-vanishing puyos are.
+class StaticPattern {
+ public:
+  explicit StaticPattern(std::istream&);
 
-  std::string name_;
-  std::deque<std::string> pattern_;
-  std::set<Neighbor> neighbors_;
-  int score_ = 0;
+  int match(const CoreField& field) const;
 
-  // Maxium number of Puyos to apply the pattern.
-  int max_puyos_ = -1;
+  std::vector<FieldBits> bits;
+  std::string name;
+  int score;
+};
 
-  // The number of Puyos to check in the pattern.
-  int num_puyos_ = 0;
+class StaticPatternBook {
+ public:
+  void readBook(std::istream& is);
+
+  // Simulate possible rensas, and find matching patterns
+  int iteratePatterns(const CoreField& field, std::string* name);
+
+ private:
+  using Book = std::vector<StaticPattern>;
+  Book book_;
 };
 
 }  // namespace peria

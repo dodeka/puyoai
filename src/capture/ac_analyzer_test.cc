@@ -60,7 +60,7 @@ protected:
     }
 };
 
-TEST_F(ACAnalyzerTest, estimateRealColor)
+TEST_F(ACAnalyzerTest, estimatePixelRealColor)
 {
     // These RGB values are taken from the real example.
     struct Testcase {
@@ -78,6 +78,8 @@ TEST_F(ACAnalyzerTest, estimateRealColor)
         { RealColor::RC_RED,    RGB(220, 162, 172) },
         { RealColor::RC_RED,    RGB(119,  59,  69) },
         { RealColor::RC_RED,    RGB(105,  29,  53) },
+        { RealColor::RC_RED,    RGB(192, 103, 119) },
+        { RealColor::RC_RED,    RGB( 79,   0,  17) },
         { RealColor::RC_GREEN,  RGB(  0, 255,   0) },
         { RealColor::RC_GREEN,  RGB(161, 193, 122) },
         { RealColor::RC_GREEN,  RGB( 79, 200,  57) },
@@ -104,12 +106,11 @@ TEST_F(ACAnalyzerTest, estimateRealColor)
         { RealColor::RC_PURPLE, RGB(135,  34, 142) },
         { RealColor::RC_PURPLE, RGB(121,  72, 142) },
     };
-    int size = ARRAY_SIZE(testcases);
 
-    for (int i = 0; i < size; ++i) {
-        EXPECT_EQ(testcases[i].expected, ACAnalyzer::estimateRealColor(testcases[i].rgb.toHSV()))
+    for (size_t i = 0; i < ARRAY_SIZE(testcases); ++i) {
+        EXPECT_EQ(testcases[i].expected, ACAnalyzer::estimatePixelRealColor(testcases[i].rgb))
             << " expected=" << toString(testcases[i].expected)
-            << " actual=" << toString(ACAnalyzer::estimateRealColor(testcases[i].rgb.toHSV()))
+            << " actual=" << toString(ACAnalyzer::estimatePixelRealColor(testcases[i].rgb))
             << " RGB=" << testcases[i].rgb.toString()
             << " HSV=" << testcases[i].rgb.toHSV().toString();
     }
@@ -261,7 +262,6 @@ TEST_F(ACAnalyzerTest, analyzeField5)
 TEST_F(ACAnalyzerTest, DISABLED_analyzeField6)
 {
     unique_ptr<AnalyzerResult> r = analyze("/images/field/field6.png");
-
     EXPECT_EQ(CaptureGameState::PLAYING, r->state());
 
     // TODO(mayah): Hard to distinguish ...
@@ -279,6 +279,32 @@ TEST_F(ACAnalyzerTest, DISABLED_analyzeField6)
     EXPECT_EQ(RealColor::RC_PURPLE, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT1_CHILD));
     EXPECT_EQ(RealColor::RC_BLUE, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT2_AXIS));
     EXPECT_EQ(RealColor::RC_BLUE, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT2_CHILD));
+}
+
+TEST_F(ACAnalyzerTest, analyzeField7)
+{
+    // NEXT2 in Player2 is difficult.
+
+    unique_ptr<AnalyzerResult> r = analyze("/images/field/field7.png");
+    EXPECT_EQ(CaptureGameState::PLAYING, r->state());
+
+    EXPECT_EQ(RealColor::RC_RED, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT1_AXIS));
+    EXPECT_EQ(RealColor::RC_BLUE, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT1_CHILD));
+    EXPECT_EQ(RealColor::RC_PURPLE, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT2_AXIS));
+    EXPECT_EQ(RealColor::RC_RED, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT2_CHILD));
+}
+
+TEST_F(ACAnalyzerTest, DISABLED_analyzeField8)
+{
+    // NEXT2 in Player2 is difficult.
+
+    unique_ptr<AnalyzerResult> r = analyze("/images/field/field8.png");
+    EXPECT_EQ(CaptureGameState::PLAYING, r->state());
+
+    EXPECT_EQ(RealColor::RC_YELLOW, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT1_AXIS));
+    EXPECT_EQ(RealColor::RC_GREEN, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT1_CHILD));
+    EXPECT_EQ(RealColor::RC_BLUE, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT2_AXIS));
+    EXPECT_EQ(RealColor::RC_GREEN, r->playerResult(1)->detectedField.realColor(NextPuyoPosition::NEXT2_CHILD));
 }
 
 TEST_F(ACAnalyzerTest, analyzeFieldOjama)
@@ -428,7 +454,8 @@ TEST_F(ACAnalyzerTest, ojamaDrop)
     // Around here, analyzer can detect ojama puyo is dropped.
     EXPECT_FALSE(rs[58]->playerResult(1)->playable);
     // Then, next puyo will disappear.
-    EXPECT_TRUE(rs[72]->playerResult(1)->playable);
+    // In wii, rs[72] is playable, however, in ac, rs[73] is playable.
+    EXPECT_TRUE(rs[72]->playerResult(1)->playable || rs[73]->playerResult(1)->playable);
 }
 
 TEST_F(ACAnalyzerTest, nextArrival)
@@ -523,8 +550,12 @@ TEST_F(ACAnalyzerTest, gameStart)
         // On frame 18-,
         // Player2: Green character is on NEXT2, however, analyzer should say NEXT2 is still PP.
         {   6,  44, "  BBPP", "  BBPP" },
+        // Frame 44 is intermediate state. For wii, it should be the same as frame 43.
+        // However, for ac, it could be the same as frame 45.
+        // So, let's mark this as dontcare.
+        {  44,  45, "------", "------" },
         // Because of fastDecision, we would be able to detect NEXT moving here.
-        {  44,  60, "BBPP  ", "BBPP  " },
+        {  45,  60, "BBPP  ", "BBPP  " },
         // Player 2, frame 60: Since some stars are located on NEXT2_AXIS,
         // analyzer might consider the axis color is YELLOW.
         {  60,  67, "BBPP--", "BBPP--" },

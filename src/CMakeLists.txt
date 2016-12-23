@@ -60,6 +60,11 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(COCOA_LIBRARY Cocoa)
 endif()
 
+# TODO(peria): Enable to use TCP sockets with MSVC
+if(NOT MSVC)
+    set(USE_TCP 1)
+endif()
+
 # ----------------------------------------------------------------------
 # Set include directories, c++ options, etc.
 
@@ -78,8 +83,8 @@ if(MSVC)
     add_compile_options("/wd4267")  # from size_t to int
     add_compile_options("/wd4800")  # from int to bool
 
-    # include build_config always.h
-    add_compile_options("/FI" "${CMAKE_SOURCE_DIR}/build/build_config.h")
+    # Always include build_config.h
+    add_compile_options("/FI ${CMAKE_SOURCE_DIR}/build/build_config.h")
 else()
     if(CYGWIN AND (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU"))
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11" CACHE STRING "" FORCE)
@@ -101,7 +106,6 @@ endif()
 add_definitions(-DSRC_DIR="${CMAKE_SOURCE_DIR}")
 add_definitions(-DTESTDATA_DIR="${CMAKE_SOURCE_DIR}/../test_resources")
 add_definitions(-DDATA_DIR="${CMAKE_SOURCE_DIR}/../data")
-add_definitions(-DRECOGNITION_DIR="${CMAKE_SOURCE_DIR}/../recognition")
 
 if(MSVC)
   add_definitions(-DGOOGLE_GLOG_DLL_DECL=)
@@ -143,6 +147,9 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/internal AND IS_DIRECTORY ${CMAKE_SOURCE_DIR}/inte
     endif()
 endif()
 
+if(USE_TCP)
+    add_definitions(-DUSE_TCP=1)
+endif()
 
 # ----------------------------------------------------------------------
 # Add subdirectories
@@ -159,7 +166,8 @@ add_subdirectory(core)
 add_subdirectory(cpu)
 add_subdirectory(duel)
 add_subdirectory(experimental)
-add_subdirectory(recognition)
+add_subdirectory(learning)
+add_subdirectory(net)
 add_subdirectory(solver)
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/internal AND IS_DIRECTORY ${CMAKE_SOURCE_DIR}/internal)
@@ -195,6 +203,8 @@ endif()
 
 if(USE_HTTPD)
     puyoai_message("HTTPD is enabled")
+else()
+    puyoai_message("HTTPD is NOT enabled")
 endif()
 
 if(BUILD_CAPTURE)
